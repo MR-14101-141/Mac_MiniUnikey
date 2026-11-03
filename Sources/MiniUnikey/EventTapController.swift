@@ -254,8 +254,20 @@ final class EventTapController {
             EventTapController.diagLog("✓ biến đổi phím đầu tiên thành '\(result.output)'")
         }
 
-        // phím gây biến đổi: nuốt, gửi N backspace rồi chèn thay thế
-        postBackspaces(count: result.backs)
+        let appID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? ""
+        let appName = NSWorkspace.shared.frontmostApplication?.localizedName ?? "?"
+        let useSelection = EventTapController.shouldUseSelection(for: appID, enabled: SettingsStore.shared.selectionModeEnabled)
+        if !EventTapController.firstTransformLogged {
+            EventTapController.firstTransformLogged = true
+            EventTapController.diagLog("✓ biến đổi trong '\(appName)' (\(appID)) — chế độ \(useSelection ? "chọn-thay-thế" : "backspace")")
+        }
+
+        // phím gây biến đổi: nuốt, xoá rồi chèn thay thế
+        if useSelection {
+            postSelectionRewind(count: result.backs)
+        } else {
+            postBackspaces(count: result.backs)
+        }
         if result.output.isEmpty {
             // Trả lại chính ký tự gốc (số literal như 6/7/8/9 không hợp lệ...)
             postText(String(Character(scalar)))
@@ -263,6 +275,40 @@ final class EventTapController {
             postText(result.output)
         }
         return nil
+    }
+
+    // MARK: - chiến lược tương thích
+
+    /// Trình duyệt/Electron bỏ qua BackSpace tổng hợp — cần chọn-ngược rồi gõ đè.
+    private static func shouldUseSelection(for appID: String, enabled: Bool) -> Bool {
+        guard enabled else { return false }
+        let id = appID.lowercased()
+        let needSelection = [
+            "chrome", "chromium", "brave", "edge", "vivaldi", "opera",
+            "thebrowser",          // Arc
+            "firefox",
+            "vscode", "cursor",    // Electron editors
+            "slack", "discord", "whatsapp", "notion", "obsidian",
+            "figma", "postman", "linear", "zen",
+        ]
+        return needSelection.contains { id.contains($0) }
+    }
+
+    /// Chọn `count` ký tự phía bên trái (Shift + ←) — gõ đè sẽ thay vùng chọn.
+    private func postSelectionRewind(count: Int) {
+        guard count > 0 else { return }
+        guard let source = eventSource else { return }
+        let left = CGKeyCode(kVK_LeftArrow)
+        for _ in 0..<count {
+            guard let down = CGEvent(keyboardEventSource: source, virtualKey: left, keyDown: true),
+                  let up = CGEvent(keyboardEventSource: source, virtualKey: left, keyDown: false) else { continue }
+            down.flags = .maskShift
+            up.flags = .maskShift
+            markOwn(down)
+            markOwn(up)
+            down.post(tap: .cgSessionEventTap)
+            up.post(tap: .cgSessionEventTap)
+        }
     }
 
     // MARK: - post lại văn bản/backspace

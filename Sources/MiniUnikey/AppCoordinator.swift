@@ -86,6 +86,14 @@ final class AppCoordinator: NSObject {
         menu.addItem(state)
         menu.addItem(.separator())
 
+        let selection = NSMenuItem(title: "Chế độ tương thích trình duyệt (chọn-ký-tự thay backspace)",
+                                   action: #selector(toggleSelection), keyEquivalent: "")
+        selection.state = SettingsStore.shared.selectionModeEnabled ? .on : .off
+        selection.target = self
+        menu.addItem(selection)
+
+        menu.addItem(.separator())
+
         let spell = NSMenuItem(title: "Kiểm tra chính tả", action: #selector(toggleSpell), keyEquivalent: "")
         spell.state = SettingsStore.shared.spellCheckEnabled ? .on : .off
         spell.target = self
@@ -166,6 +174,10 @@ final class AppCoordinator: NSObject {
 
     @objc private func toggleSpell() {
         SettingsStore.shared.spellCheckEnabled.toggle()
+    }
+
+    @objc private func toggleSelection() {
+        SettingsStore.shared.selectionModeEnabled.toggle()
     }
 
     @objc private func toggleModern() {

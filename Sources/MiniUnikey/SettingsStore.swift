@@ -18,6 +18,7 @@ final class SettingsStore {
         static let freeMarking = "freeMarkingEnabled"
         static let modernStyle = "modernStyleEnabled"
         static let launchAtLogin = "launchAtLoginEnabled"
+        static let selectionMode = "selectionModeEnabled"
     }
 
     private let defaults = UserDefaults.standard
@@ -45,6 +46,12 @@ final class SettingsStore {
     var launchAtLoginEnabled: Bool {
         get { defaults.object(forKey: Keys.launchAtLogin) == nil ? false : defaults.bool(forKey: Keys.launchAtLogin) }
         set { defaults.set(newValue, forKey: Keys.launchAtLogin); notify() }
+    }
+
+    /// Chế độ tương thích trình duyệt: chọn-ký-tự-ngược rồi gõ đè thay vì backspace
+    var selectionModeEnabled: Bool {
+        get { defaults.object(forKey: Keys.selectionMode) == nil ? true : defaults.bool(forKey: Keys.selectionMode) }
+        set { defaults.set(newValue, forKey: Keys.selectionMode); notify() }
     }
 
     func applyLaunchAtLogin() {
