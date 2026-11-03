@@ -1,0 +1,16 @@
+MiniUnikey — Bộ gõ tiếng Việt kiểu VNI cho macOS
+
+Phần lõi thuật toán + bảng vần lấy từ UniKey engine (Phạm Kim Long),
+nguyên bản theo fcitx5-unikey, giấy phép LGPL-2.0-or-later:
+
+    SPDX-License-Identifier: LGPL-2.0-or-later
+    Copyright 2000-2005 Pham Kim Long <unikey@gmail.com>
+    Copyright 2022 Fcitx5 Unikey contributors
+
+Các bảng dữ liệu (vseq/cseq/vcpair/unicode) được sinh lại 1:1 bằng
+scripts/gen_tables.py từ nguồn trên.
+
+Phần UI/event-macOS/swift được viết mới: phát hành theo LGPL-2.1-or-later
+tương thích với giấy phép của engine gốc.
+
+Xem https://github.com/fcitx/fcitx5-unikey để biết nguồn gốc.
