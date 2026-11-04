@@ -14,7 +14,9 @@ Lần đầu chạy, cần cấp quyền **Accessibility**:
 `Cài đặt hệ thống → Quyền riêng tư & bảo mật → Accessibility` → thêm MiniUnikey.
 Menu trên thanh trạng thái (icon **VN**) sẽ hướng dẫn lại.
 
-## Cách gõ kiểu VNI
+## Cách gõ
+
+### Kiểu VNI (mặc định)
 
 | Phím | Công dụng | Ví dụ |
 |------|----------------|-------|
@@ -27,6 +29,20 @@ Menu trên thanh trạng thái (icon **VN**) sẽ hướng dẫn lại.
 | gõ lại phím số | huỷ dấu vừa áp dụng | `a6 6` → a |
 
 Ví dụ chuẩn (được kiểm chứng trên engine gốc): `nguoi7 → ngươi` • `ngu7oi5 → ngượi` • `tuan62 → tuần` • `sach1 → sách` • `sach10 → sach` • `ngan62 → ngần`
+
+### Kiểu Telex (chọn trong menu → "Kiểu gõ")
+
+| Phím | Công dụng | Ví dụ (đã kiểm chứng trên engine gốc) |
+|------|----------------|-------|
+| `s` `f` `r` `x` `j` | sắc, huyền, hỏi, ngã, nặng *(gõ sau từ)* | `hoaif` → hoài, `sachs` → sách, `toof` → tô, `tuanf` → tuần |
+| `z` | xoá dấu thanh | `sachsz` → sach |
+| `aa` `ee` `oo` | â ê ô *(gõ sau nguyên âm)* | `aan` → ân, `toof` → tô |
+| `aw` | ă *(gõ sau nguyên âm)* | `awnh` → ănh |
+| `uw` `ow` | ư ơ *(khi có nguyên âm trước)* | `dduwong` → đương |
+| `dd` | đ | `dduwong` → đương |
+| `w` | móc ư/ơ — không có nguyên âm trước thì giữ nguyên `w` | `cw` → `cư` • `w` một mình → `w` |
+
+> Chữ số giữ nguyên trong Telex (`1..9` gõ literal — muốn gõ dấu dùng chữ s/f/r/x/j).
 
 > Lưu ý chữ số: bộ gõ chỉ biến đổi khi tạo ra tổ hợp hợp lệ (với "Kiểm tra chính tả" bật), vì vậy gõ số bình thường sau dấu cách/ký tự lạ luôn an toàn. Muốn chắc chắn không biến đổi, có thể bấm số 2 lần liền (bấm 2 lần = huỷ trạng thái vừa áp dụng).
 
@@ -41,27 +57,32 @@ Ví dụ chuẩn (được kiểm chứng trên engine gốc): `nguoi7 → ngư�
 ## Kiến trúc
 
 ```
-Sources/MiniUnikey/
-├── Engine/                        # engine VNI (port UniKey)
-│   ├── VniTables.swift            # bảng vần/ký tự (sinh từ dump C, 1:1)
-│   ├── VnTablesHelper.swift       # bảng nguyên âm
-│   ├── VnCharsetMaps.swift        # ánh xạ ký tự ↔ lexeme, bảng ngắt từ
-│   └── VietKeyboardEngine.swift   # state machine (processTone/Roof/Hook/Dd/...)
-├── EventTapController.swift       # CGEventTap: nuốt event, phát lại backspace+text
-├── AppCoordinator.swift           # icon menu bar, menu cài đặt
-├── GuideWindow.swift              # cửa sổ hướng dẫn & gõ thử
-├── Permissions.swift              # quyền Accessibility + hệ thống pérmisson flow
-├── SettingsStore.swift            # UserDefaults + thông báo thay đổi
-└── main.swift                     # NSApplication (LSUIElement — không Dock)
+Sources/
+├── MiniUnikeyEngine/               # engine VNI+Telex (port UniKey) — thư viện Swift thuần
+│   ├── VniTables.swift             # bảng vần/ký tự (sinh từ dump C, 1:1)
+│   ├── VnTablesHelper.swift        # bảng nguyên âm
+│   ├── VnCharsetMaps.swift         # ánh xạ ký tự ↔ lexeme, bảng ngắt từ
+│   └── VietKeyboardEngine.swift    # state machine (Tone/Roof/Hook/Dd/TelexW…)
+└── MiniUnikey/                     # app macOS
+    ├── EventTapController.swift    # CGEventTap: nuốt event, phát lại (backspace|chọn-ký-tự)+text
+    ├── AppCoordinator.swift        # menu bar: VNI/Telex, tuỳ chọn — icon VN
+    ├── GuideWindow.swift           # cửa sổ hướng dẫn & gõ thử
+    ├── Permissions.swift           # quyền Accessibility
+    ├── SettingsStore.swift         # UserDefaults (method, spell check, free marking…)
+    └── main.swift                  # NSApplication (LSUIElement — không Dock)
+
+Tools/engine-cli/                   # CLI debug engine: swift run engine-cli --telex hoaif
 
 Tests/MiniUnikeyTests/
-├── corpus.jsonl                   # 10.776 ca kỳ vọng (từ engine C++ tham chiếu)
-└── ParityTests.swift              # kiểm chứng Swift ≡ C: swift test
+├── corpus.jsonl                    # 10.776 ca VNI (từ engine C++ tham chiếu)
+├── corpus_telex.jsonl              # 3.212 ca Telex/Simple-Telex (fuzz + curated)
+└── ParityTests.swift               # kiểm chứng Swift ≡ C++: swift test
 
 scripts/
-├── build-app.sh                   # tạo .app (ad-hoc codesign)
-├── gen_tables.py                  # sinh bảng từ JSON dump của ukengine
-└── gen_corpus.py                  # sinh corpus bằng bằng reference engine C
+├── build-app.sh                    # tạo .app (ad-hoc codesign)
+├── gen_tables.py                   # sinh bảng từ JSON dump của ukengine
+├── gen_corpus.py                   # sinh corpus bằng reference engine C
+└── gen_icon.swift                  # vẽ icon app (CoreGraphics)
 ```
 
 Quy trình kiểm chứng:
