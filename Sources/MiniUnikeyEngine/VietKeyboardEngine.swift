@@ -9,7 +9,7 @@
 import Foundation
 
 /// Dạng của từ đang gõ trong bộ đệm (bản dịch VnWordForm)
-enum VnWordForm: Int {
+public enum VnWordForm: Int {
     case nonVn = 0
     case empty
     case cons
@@ -20,16 +20,24 @@ enum VnWordForm: Int {
 }
 
 /// Kiểu phân loại sự kiện (bản dịch UkCharType)
-enum UkCharType {
+public enum UkCharType {
     case reset
     case wordBreak
     case nonVn
     case vn
 }
 
+/// Phương thức gõ (mirrors UkInputMethod của UniKey)
+public enum VnInputMethod: String {
+    case vni
+    case telex
+    case simpleTelex   // w chỉ làm móc khi có nguyên âm trước đó (không ép ư)
+}
+
 /// Hành động bấm phím theo kiểu gõ VNI
-enum VniAction: Equatable {
+public enum VniAction: Equatable {
     case normal
+    case txW           // Telex: phím w (gán móc hoặc ép ư/literal tùy ngữ cảnh)
     case roofAll
     case roofA, roofE, roofO
     case hookAll
@@ -41,7 +49,7 @@ enum VniAction: Equatable {
 }
 
 /// Sự kiện phím theo kiểu UniKey
-struct UkKeyEvent {
+public struct UkKeyEvent {
     var keyCode: UInt32 = 0
     var action: VniAction = .normal
     var vnSym: Int = VnLexi.vnl_nonVnChar.rawValue
@@ -50,28 +58,28 @@ struct UkKeyEvent {
 }
 
 /// Cấu hình engine
-struct EngineOptions {
-    var vietKey = true
-    var spellCheckEnabled = true
-    var freeMarking = true
-    var modernStyle = false
+public struct EngineOptions {
+    public var vietKey = true
+    public var spellCheckEnabled = true
+    public var freeMarking = true
+    public var modernStyle = false
 }
 
-final class VietKeyboardEngine {
+public final class VietKeyboardEngine {
     // MARK: - API công khai
 
     /// Chạy một ký tự. Kết quả:
     /// - changed == false → để hệ thống chèn phím gốc.
     /// - changed == true  → hệ thống tự xoá `backs` ký tự cuối rồi chèn `output`.
     ///   (output rỗng tương ứng trường hợp "đảo dấu": chèn lại chính phím gốc)
-    func process(_ key: UInt32) -> (backs: Int, output: String, changed: Bool) {
+    public func process(_ key: UInt32) -> (backs: Int, output: String, changed: Bool) {
         prepareBuffer()
         backs = 0
         changePos = current + 1
         outString = ""
         outputWritten = false
 
-        var ev = VietKeyboardEngine.eventFrom(key)
+        var ev = VietKeyboardEngine.eventFrom(key, method: method)
         var ret = dispatch(&ev)
 
         if options.vietKey, current >= 0, buffer[current].form == .nonVn,
@@ -85,7 +93,7 @@ final class VietKeyboardEngine {
     }
 
     /// Backspace: nếu việc xoá chữ cần dời lại dấu thanh, trả về số lần xoá + chuỗi phải chèn.
-    func processBackspace() -> (backs: Int, output: String, changed: Bool) {
+    public func processBackspace() -> (backs: Int, output: String, changed: Bool) {
         guard options.vietKey, current >= 0 else { return (1, "", false) }
         prepareBuffer()
         backs = 0
@@ -127,14 +135,16 @@ final class VietKeyboardEngine {
         return (backs, outString, true)
     }
 
-    func reset() {
+    public func reset() {
         current = -1
         singleMode = false
     }
 
-    func atWordBeginning() -> Bool {
+    public func atWordBeginning() -> Bool {
         current < 0 || buffer[current].form == .empty
     }
+
+    public func debugBufferSize() -> Int { buffer.count }
 
     // MARK: - Bảng & trạng thái
 
@@ -142,7 +152,10 @@ final class VietKeyboardEngine {
     private static let cSeqList = VnTables.cSeqList    // [len, c0..2, suffix]
     private static let vcPairs: Set<[Int]> = Set(VnTables.vcPairs.map { [$0[0], $0[1]] })
 
-    struct WordInfo {
+    /// Phương thức gõ hiện hành (VNI / Telex)
+    public var method: VnInputMethod = .vni
+
+    public struct WordInfo {
         var form: VnWordForm = .empty
         var c1Offset: Int = -1
         var vOffset: Int = -1
@@ -157,7 +170,7 @@ final class VietKeyboardEngine {
 
     private var buffer: [WordInfo] = []
     private var bufferCapacity = 128
-    var current = -1
+    public var current = -1
     private var changePos = -1
     private var backs = 0
     private var singleMode = false
@@ -165,15 +178,16 @@ final class VietKeyboardEngine {
     private var outString = ""
     private var outputWritten = false
 
-    var options = EngineOptions()
+    public var options = EngineOptions()
 
-    init() { reset() }
+public init() { reset() }
 
     // MARK: - Phân loại phím
 
-    static func eventFrom(_ key: UInt32) -> UkKeyEvent {
+    static func eventFrom(_ key: UInt32, method: VnInputMethod? = nil) -> UkKeyEvent {
         var ev = UkKeyEvent()
         ev.keyCode = key
+        let method = method ?? .vni
 
         if key == 0 {
             ev.chType = .wordBreak
@@ -190,22 +204,48 @@ final class VietKeyboardEngine {
             return ev
         }
 
-        // Chữ số → hành động VNI
-        if key >= 48 && key <= 57 {
-            ev.chType = .nonVn
-            switch key {
-            case 48: ev.action = .tone(0); ev.tone = 0
-            case 49: ev.action = .tone(1); ev.tone = 1
-            case 50: ev.action = .tone(2); ev.tone = 2
-            case 51: ev.action = .tone(3); ev.tone = 3
-            case 52: ev.action = .tone(4); ev.tone = 4
-            case 53: ev.action = .tone(5); ev.tone = 5
-            case 54: ev.action = .roofAll
-            case 55: ev.action = .hookUO
-            case 56: ev.action = .bowl
-            default: ev.action = .dd
+        switch method {
+        case .vni:
+            // Chữ số → hành động VNI
+            if key >= 48 && key <= 57 {
+                ev.chType = .nonVn
+                switch key {
+                case 48: ev.action = .tone(0)
+                case 49: ev.action = .tone(1); ev.tone = 1
+                case 50: ev.action = .tone(2); ev.tone = 2
+                case 51: ev.action = .tone(3); ev.tone = 3
+                case 52: ev.action = .tone(4); ev.tone = 4
+                case 53: ev.action = .tone(5); ev.tone = 5
+                case 54: ev.action = .roofAll
+                case 55: ev.action = .hookUO
+                case 56: ev.action = .bowl
+                default: ev.action = .dd
+                }
+                return ev
             }
-            return ev
+
+        case .telex, .simpleTelex:
+            // Chữ cái ưu tiên → hành động Telex (phản chiếu TelexMethodMapping của UniKey)
+            switch key {
+            case 122, 90:   ev.action = .tone(0); ev.tone = 0    // z Z ← xoá dấu
+            case 115, 83:   ev.action = .tone(1); ev.tone = 1    // s S sắc
+            case 102, 70:   ev.action = .tone(2); ev.tone = 2    // f F huyền
+            case 114, 82:   ev.action = .tone(3); ev.tone = 3    // r R hỏi
+            case 120, 88:   ev.action = .tone(4); ev.tone = 4    // x X ngã
+            case 106, 74:   ev.action = .tone(5); ev.tone = 5    // j J nặng
+            case 97, 65:    ev.action = .roofA                   // a A → â
+            case 101, 69:   ev.action = .roofE                   // e E → ê
+            case 111, 79:   ev.action = .roofO                   // o O → ô
+            case 100, 68:   ev.action = .dd                      // d D → đ
+            default: break
+            }
+            if key == 119 || key == 87 {   // w W
+                ev.action = method == .telex ? .txW : .hookAll
+                ev.chType = .nonVn        // như C: UkcMap['w'] = ukcNonVn
+                return ev
+            }
+            // nếu không map thành action đặc biệt → đi tiếp phần chung bên dưới
+
         }
 
         // Chữ cái ASCII
@@ -252,9 +292,118 @@ final class VietKeyboardEngine {
             return processDd(&ev)
         case .tone:
             return processTone(&ev)
+        case .txW:
+            return processTelexW(&ev)
         case .normal:
             return processAppend(&ev)
         }
+    }
+
+    // MARK: - processTelexW (phím w trong Telex — port 1:1 C processTelexW)
+
+    private var usedAsMapChar = false
+
+    private func processTelexW(_ ev: inout UkKeyEvent) -> Int {
+        if !options.vietKey { return processAppend(&ev) }
+
+        if usedAsMapChar {
+            var mapEv = ev
+            mapEv.action = .normal
+            mapEv.chType = .vn
+            mapEv.vnSym = keyUpper(ev.keyCode) ? VnLexi.vnl_Uh.rawValue : VnLexi.vnl_uh.rawValue
+            let ret = processMapCharVN(&mapEv, rawKey: ev.keyCode)
+            if ret == 0 {
+                if current >= 0 { current -= 1 }
+                usedAsMapChar = false
+                mapEv.action = .hookAll
+                mapEv.chType = .nonVn
+                return processHook(&mapEv)
+            }
+            return ret
+        }
+
+        usedAsMapChar = false
+        var hookEv = ev
+        hookEv.action = .hookAll
+        let ret = processHook(&hookEv)
+        if ret == 0 {
+            if current >= 0 { current -= 1 }        // pop ô 'w' nonVN vừa append
+            var mapEv = ev
+            mapEv.action = .normal
+            mapEv.chType = .vn
+            mapEv.vnSym = keyUpper(ev.keyCode) ? VnLexi.vnl_Uh.rawValue : VnLexi.vnl_uh.rawValue
+            usedAsMapChar = true
+            return processMapCharVN(&mapEv, rawKey: ev.keyCode)
+        }
+        return ret
+    }
+
+    private func keyUpper(_ code: UInt32) -> Bool {
+        (65...90).contains(code)
+    }
+
+    /// Port 1:1 C processMapChar: thử chèn ký tự VN; nếu từ vẫn hợp lệ → nuốt phím (backs=0, output=ư);
+    /// nếu từ kỳ dị → pop, undo ô 'ư' trùng (nếu có), rồi append literal 'w'.
+    private func processMapCharVN(_ ev: inout UkKeyEvent, rawKey: UInt32) -> Int {
+        _ = processAppend(&ev)                       // chèn 'ư' như ký tự VN (ev.chType=.vn)
+        if !options.vietKey { return 0 }
+
+        if current >= 0 && buffer[current].form != .empty && buffer[current].form != .nonVn {
+            return 1                                  // từ vẫn hợp lệ: nuốt phím, chèn 'ư'
+        }
+        if current < 0 { return 0 }
+
+        // mapChar doesn't apply — pop ô 'ư' vừa thử
+        current -= 1
+        var undo = false
+        if current >= 0 {
+            let entry = buffer[current]
+            if entry.form != .empty && entry.form != .nonVn {
+                var prevSym = entry.vnSym
+                if entry.caps == 1 { prevSym -= 1 }
+                if prevSym == ev.vnSym {              // ô trước là 'ư' tương tự → undo (gõ w chữ 2)
+                    if entry.form != .cons {
+                        // dịch lại tông như C trong processMapChar-undo
+                        let vs = VnVowelSeq(rawValue: entry.vseq)!
+                        let info = VietKeyboardEngine.vSeqList[vs.rawValue]
+                        let vEnd = current - entry.vOffset
+                        let vStart = vEnd - (info[0] - 1)
+                        let curTonePos = vStart + getTonePosition(vs, vEnd == current)
+                        let tone = buffer[curTonePos].tone
+                        markChange(current)
+                        current -= 1
+                        if tone != 0 && current >= 0 &&
+                            (buffer[current].form == .vowel || buffer[current].form == .cv) {
+                            let newVs = VnVowelSeq(rawValue: buffer[current].vseq)!
+                            let newTonePos = vStart + getTonePosition(newVs, true)
+                            if newTonePos != curTonePos {
+                                markChange(newTonePos)
+                                buffer[newTonePos].tone = tone
+                                markChange(curTonePos)
+                                buffer[curTonePos].tone = 0
+                            }
+                        }
+                    } else {
+                        markChange(current)
+                        current -= 1
+                    }
+                    undo = true
+                }
+            }
+        }
+
+        // append literal 'w'
+        var rawEv = UkKeyEvent()
+        rawEv.keyCode = ev.keyCode
+        rawEv.action = .normal
+        rawEv.chType = .nonVn
+        rawEv.vnSym = VnCharset.asciiToLexi[Int(rawKey)] ?? VnLexi.vnl_nonVnChar.rawValue
+        let ret = processAppend(&rawEv)
+        if undo {
+            singleMode = false
+            return 1
+        }
+        return ret
     }
 
     // MARK: - markChange & output
@@ -458,9 +607,9 @@ final class VietKeyboardEngine {
 
         let target: Int
         switch ev.action {
-        case .roofA: target = VnLexi.vnl_Ar.rawValue
-        case .roofE: target = VnLexi.vnl_Er.rawValue
-        case .roofO: target = VnLexi.vnl_Or.rawValue
+        case .roofA: target = VnLexi.vnl_ar.rawValue
+        case .roofE: target = VnLexi.vnl_er.rawValue
+        case .roofO: target = VnLexi.vnl_or.rawValue
         default: target = VnLexi.vnl_nonVnChar.rawValue
         }
 
@@ -473,6 +622,7 @@ final class VietKeyboardEngine {
         let tone = buffer[curTonePos].tone
 
         var newVs = VnVowelSeq.vs_nil
+        var roofRemoved = false
         var doubleChangeUO = false
         if vs == .vs_uho || vs == .vs_uhoh || vs == .vs_uhoi || vs == .vs_uhohi {
             newVs = VietKeyboardEngine.lookupVSeq3(VnLexi.vnl_u.rawValue, VnLexi.vnl_or.rawValue, vSeqInfo[5])
@@ -495,6 +645,7 @@ final class VietKeyboardEngine {
 
             let recomputed = recomputeVSeq(vStart, vSeqInfo[0])
             pInfo = VietKeyboardEngine.vSeqList[recomputed.rawValue]
+            roofRemoved = true
         } else {
             pInfo = VietKeyboardEngine.vSeqList[newVs.rawValue]
             if target != VnLexi.vnl_nonVnChar.rawValue && pInfo[3 + pInfo[9]] != target { return processAppend(&ev) }
@@ -516,12 +667,19 @@ final class VietKeyboardEngine {
 
         for i in 0..<pInfo[0] { buffer[vStart + i].vseq = pInfo[6 + i] }
 
-        let newTonePos = vStart + getTonePosition(newVs, vEnd == current)
-        if curTonePos != newTonePos && tone != 0 {
-            markChange(newTonePos)
-            buffer[newTonePos].tone = tone
-            markChange(curTonePos)
-            buffer[curTonePos].tone = 0
+        if newVs != .vs_nil {
+            let newTonePos = vStart + getTonePosition(newVs, vEnd == current)
+            if curTonePos != newTonePos && tone != 0 {
+                markChange(newTonePos)
+                buffer[newTonePos].tone = tone
+                markChange(curTonePos)
+                buffer[curTonePos].tone = 0
+            }
+        }
+
+        if roofRemoved {
+            singleMode = false
+            _ = processAppend(&ev)
         }
         return 1
     }
@@ -730,12 +888,14 @@ final class VietKeyboardEngine {
         let pInfo = VietKeyboardEngine.vSeqList[newVs.rawValue]
         for i in 0..<pInfo[0] { buffer[vStart + i].vseq = pInfo[6 + i] }
 
-        let newTonePos = vStart + getTonePosition(newVs, vEnd == current)
-        if curTonePos != newTonePos && tone != 0 {
-            markChange(newTonePos)
-            buffer[newTonePos].tone = tone
-            markChange(curTonePos)
-            buffer[curTonePos].tone = 0
+        if newVs != .vs_nil {
+            let newTonePos = vStart + getTonePosition(newVs, vEnd == current)
+            if curTonePos != newTonePos && tone != 0 {
+                markChange(newTonePos)
+                buffer[newTonePos].tone = tone
+                markChange(curTonePos)
+                buffer[curTonePos].tone = 0
+            }
         }
         if hookRemoved {
             singleMode = false
@@ -972,7 +1132,7 @@ final class VietKeyboardEngine {
                         let tonePos = getTonePosition(newVs, true) + (prevIndex - vSeqInfo[0] + 1)
                         markChange(tonePos)
                         buffer[tonePos].tone = newTone
-                        return complexEvent ? 1 : 0
+                        return 1
                     }
                 } else {
                     let newTonePos = getTonePosition(newVs, true) + (prevIndex - vSeqInfo[0] + 1)
@@ -981,12 +1141,12 @@ final class VietKeyboardEngine {
                         buffer[prevTonePos].tone = 0
                         markChange(newTonePos)
                         buffer[newTonePos].tone = newTone != 0 ? newTone : tone
-                        return complexEvent ? 1 : 0
+                        return 1
                     }
                     if newTone != 0 && newTone != tone {
                         markChange(prevTonePos)
                         buffer[prevTonePos].tone = newTone
-                        return complexEvent ? 1 : 0
+                        return 1
                     }
                 }
             }

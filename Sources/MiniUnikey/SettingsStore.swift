@@ -19,6 +19,7 @@ final class SettingsStore {
         static let modernStyle = "modernStyleEnabled"
         static let launchAtLogin = "launchAtLoginEnabled"
         static let selectionMode = "selectionModeEnabled"
+        static let inputMethod = "inputMethod"
     }
 
     private let defaults = UserDefaults.standard
@@ -52,6 +53,12 @@ final class SettingsStore {
     var selectionModeEnabled: Bool {
         get { defaults.object(forKey: Keys.selectionMode) == nil ? true : defaults.bool(forKey: Keys.selectionMode) }
         set { defaults.set(newValue, forKey: Keys.selectionMode); notify() }
+    }
+
+    /// Kiểu gõ: "vni" hoặc "telex"
+    var inputMethod: String {
+        get { defaults.string(forKey: Keys.inputMethod) ?? "vni" }
+        set { defaults.set(newValue, forKey: Keys.inputMethod); notify() }
     }
 
     func applyLaunchAtLogin() {

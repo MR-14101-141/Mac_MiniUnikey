@@ -9,6 +9,7 @@
 //  Event tự post được đánh dấu qua .eventSourceUserData để callback tự bỏ qua.
 //
 import AppKit
+import MiniUnikeyEngine
 import Carbon.HIToolbox
 
 final class EventTapController {
@@ -40,6 +41,7 @@ final class EventTapController {
         engine.options.spellCheckEnabled = store.spellCheckEnabled
         engine.options.freeMarking = store.freeMarkingEnabled
         engine.options.modernStyle = store.modernStyleEnabled
+        engine.method = store.inputMethod == "telex" ? .telex : .vni
         engine.reset()
     }
 
@@ -262,17 +264,23 @@ final class EventTapController {
             EventTapController.diagLog("✓ biến đổi trong '\(appName)' (\(appID)) — chế độ \(useSelection ? "chọn-thay-thế" : "backspace")")
         }
 
-        // phím gây biến đổi: nuốt, xoá rồi chèn thay thế
-        if useSelection {
-            postSelectionRewind(count: result.backs)
-        } else {
-            postBackspaces(count: result.backs)
+        // Nhích lại trước khi chèn (browser backspace-proof: chọn-ký-tự; app thường: backspace)
+        if result.backs > 0 {
+            if useSelection {
+                postSelectionRewind(count: result.backs)
+            } else {
+                postBackspaces(count: result.backs)
+            }
         }
-        if result.output.isEmpty {
-            // Trả lại chính ký tự gốc (số literal như 6/7/8/9 không hợp lệ...)
+
+        if !result.output.isEmpty {
+            postText(result.output)
+        } else if result.backs > 0 {
+            // hiếm: xoá mà không chèn lại gì → trả lại ký tự gốc
             postText(String(Character(scalar)))
         } else {
-            postText(result.output)
+            // changed nhưng đã sản xuất đủ (backs=0 & output rỗng) → để phím đi qua
+            return Unmanaged.passUnretained(event)
         }
         return nil
     }

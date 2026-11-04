@@ -92,17 +92,23 @@ final class GuideView: NSView {
         append("4. Thoát và mở lại app nếu chưa thấy hoạt động ngay.\n\n")
 
         let p2 = NSAttributedString(
-            string: "CÁCH GÕ KIỂU VNI\n",
+            string: "CÁCH GÕ — tuỳ “Kiểu gõ” chọn trong menu (VNI mặc định)\n",
             attributes: [.font: NSFont.systemFont(ofSize: 14, weight: .bold), .foregroundColor: NSColor.labelColor])
         storage.append(p2)
+
+        append("[Kiểu VNI — mặc định]\n")
         append("• Dấu thanh — gõ SỐ ngay sau từ (hoặc ngay sau nguyên âm):\n")
         append("      a1 → á      a2 → à      a3 → ả      a4 → ã      a5 → ạ\n")
-        append("      oa2 → òa          (và “hoà” nếu bật “Kiểu dấu mới”)\n")
-        append("      hoai2 → hoài      tie6ng → tiếng      ngan62 → ngần (6 tạo â rồi 2 đặt huyền)\n")
-        append("      tuan62 → tuần     ho6ng → hồng     khan8 → khăn     d9 → đ\n\n")
-        append("• Dấu hình dạng — gõ SỐ NGAY SAU nguyên âm (hoặc sau từ nếu bật “Gõ tự do”):\n")
-        append("      a6 → â      e6 → ê      o6 → ô      u7 → ư      o7 → ơ      a8 → ă      d9 → đ\n")
-        append(" Ví dụ:     “nguoi7” → ngươi ; “ngu7oi5” → ngượi ; “ngua7a” → ngưa\n\n")
+        append("      oa2 → òa (hoặc “hoà” nếu bật “Kiểu dấu mới”)\n")
+        append("      tie6ng → tiếng      ngan62 → ngần      tuan62 → tuần     khan8 → khăn     d9 → đ\n")
+        append("• Dấu hình dạng — gõ SỐ ngay sau nguyên âm: a6 → â   e6 → ê   o6 → ô   u7 → ư   o7 → ơ   a8 → ă   d9 → đ\n\n")
+
+        append("[Kiểu Telex]\n")
+        append("• Dấu thanh — gõ CHỮ ngay sau từ:  s → sắc   f → huyền   r → hỏi   x → ngã   j → nặng   z → xoá dấu\n")
+        append("      hoaif → hoài      sachs → sách      nganx → ngã?? — đúng cặp “-an-ngã” là “nganx”\n")
+        append("• Dấu hình dạng — gõ CHỮ sau nguyên âm: aa → â   ee → ê   oo → ô   aw → ă   aa?? — chuẩn: aa â, ee ê, oo ô, aw ă, dd đ, uw ư, ow ơ\n")
+        append("      aan → ân      awnh → ănh      dduwong → đương\n")
+        append("• w = móc ư/ơ khi có nguyên âm trước (đứng một mình giữ nguyên chữ w).\n\n")
 
         let p3 = NSAttributedString(
             string: "CÚ PHỮM SỰ KIỆN ĐẶC BIỆT\n",

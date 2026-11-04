@@ -86,6 +86,24 @@ final class AppCoordinator: NSObject {
         menu.addItem(state)
         menu.addItem(.separator())
 
+        // Kiểu gõ: VNI / Telex
+        let methodTitle = NSMenuItem(title: "Kiểu gõ:", action: nil, keyEquivalent: "")
+        methodTitle.isEnabled = false
+        menu.addItem(methodTitle)
+
+        let vni = NSMenuItem(title: "⦿ VNI (số cuối từ: sach1)", action: #selector(pickVNI), keyEquivalent: "")
+        vni.state = SettingsStore.shared.inputMethod == "vni" ? .on : .off
+        vni.target = self
+        menu.addItem(vni)
+
+        let telex = NSMenuItem(title: "⦿ Telex (s/f/r/x/j + aa/dd: sach1 s?", action: #selector(pickTelex), keyEquivalent: "")
+        telex.title = "Telex (s f r x j — dấu thanh, aa â, dd đ)"
+        telex.state = SettingsStore.shared.inputMethod == "telex" ? .on : .off
+        telex.target = self
+        menu.addItem(telex)
+
+        menu.addItem(.separator())
+
         let selection = NSMenuItem(title: "Chế độ tương thích trình duyệt (chọn-ký-tự thay backspace)",
                                    action: #selector(toggleSelection), keyEquivalent: "")
         selection.state = SettingsStore.shared.selectionModeEnabled ? .on : .off
@@ -178,6 +196,14 @@ final class AppCoordinator: NSObject {
 
     @objc private func toggleSelection() {
         SettingsStore.shared.selectionModeEnabled.toggle()
+    }
+
+    @objc private func pickVNI() {
+        SettingsStore.shared.inputMethod = "vni"
+    }
+
+    @objc private func pickTelex() {
+        SettingsStore.shared.inputMethod = "telex"
     }
 
     @objc private func toggleModern() {
