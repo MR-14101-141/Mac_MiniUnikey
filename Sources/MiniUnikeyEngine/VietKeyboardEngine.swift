@@ -96,6 +96,8 @@ public final class VietKeyboardEngine {
     public func processBackspace() -> (backs: Int, output: String, changed: Bool) {
         guard options.vietKey, current >= 0 else { return (1, "", false) }
         prepareBuffer()
+        // prepareBuffer có thể reset() khi buffer đầy toàn ô non-empty
+        guard current >= 0 else { return (1, "", false) }
         backs = 0
         changePos = current + 1
         markChange(current)
@@ -1352,22 +1354,35 @@ public init() { reset() }
 
     /// như prepareBuffer của ukengine: chừa đủ 10 ô
     private func prepareBuffer() {
-        if current >= 0 && current + 10 >= bufferCapacity {
-            var rid = current / 2
-            while rid < current && buffer[rid].form != .empty { rid += 1 }
-            if rid == current {
-                reset()
-            } else {
-                rid += 1
-                let keep = Array(buffer[rid...current])
-                buffer = keep
-                current -= rid
+        guard current >= 0 else { return }
+        guard current + 10 >= bufferCapacity else { return }
+
+        // Phòng thủ: bảo đảm `current` trỏ tới ô đã cấp phát. Trước đây hàm này
+        // được gọi từ extendBuffer() ngay sau `current += 1`, lúc đó current có
+        // thể bằng buffer.count → slice buffer[rid...current] trap.
+        if current >= buffer.count {
+            let needed = current + 1 - buffer.count
+            for _ in 0..<max(needed, 10) {
+                buffer.append(WordInfo())
             }
+        }
+
+        var rid = current / 2
+        while rid < current && buffer[rid].form != .empty { rid += 1 }
+        if rid == current {
+            reset()
+        } else {
+            rid += 1
+            let keep = Array(buffer[rid...current])
+            buffer = keep
+            current -= rid
         }
     }
 
+    /// Chỉ bảo đảm mảng vật lý có ô cho `current`; KHÔNG gọi prepareBuffer()
+    /// ở đây. prepareBuffer() có thể reset() current về -1, và các hàm append
+    /// gọi extendBuffer() ngay sau `current += 1` sẽ ghi vào buffer[-1].
     private func extendBuffer() {
-        prepareBuffer()
         if current >= buffer.count {
             let needed = current + 1 - buffer.count
             for _ in 0..<max(needed, 10) {

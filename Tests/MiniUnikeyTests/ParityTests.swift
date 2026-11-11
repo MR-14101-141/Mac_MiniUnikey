@@ -149,4 +149,51 @@ final class ParityTests: XCTestCase {
         XCTAssertEqual(simulate("saas", method: .telex), "sấ")
         XCTAssertEqual(simulate("uyel", method: .telex), "uyel")       // từ vô nghĩa → literal (spell check)
     }
+
+    // MARK: - Hồi quy crash "Array index is out of range" trong prepareBuffer()
+
+    /// Chuỗi dài không có dấu cách từng làm tràn buffer 128 ô và crash app
+    /// (MiniUnikey-2026-11-06 / 2026-11-11). Phải chạy qua 128+ ô an toàn.
+    func testLongUnbrokenInputDoesNotCrash() {
+        for method in [VnInputMethod.vni, .telex] {
+            for length in [118, 119, 120, 128, 200, 500] {
+                let engine = VietKeyboardEngine()
+                engine.method = method
+                engine.reset()
+                for _ in 0..<length {
+                    _ = engine.process(0x61)          // 'a'
+                }
+                _ = engine.process(0)                 // word break
+                for _ in 0..<length {
+                    _ = engine.processBackspace()
+                }
+            }
+        }
+    }
+
+    /// Fuzz: trộn chữ, số, dấu cách và backspace qua nhiều cửa sổ buffer.
+    func testFuzzKeyStreamDoesNotCrash() {
+        var seed: UInt64 = 0x5EED_1234
+        func next() -> UInt64 {
+            seed = seed &* 6364136223846793005 &+ 1442695040888963407
+            return seed
+        }
+        let alphabet = Array("aeiouydmsntcgpkhq0123456789 ")
+        for method in [VnInputMethod.vni, .telex, .simpleTelex] {
+            let engine = VietKeyboardEngine()
+            engine.method = method
+            engine.reset()
+            for _ in 0..<20_000 {
+                let r = next()
+                if r % 11 == 0 {
+                    _ = engine.processBackspace()
+                } else if r % 37 == 0 {
+                    _ = engine.process(0)             // word break
+                } else {
+                    let ch = alphabet[Int(r % UInt64(alphabet.count))]
+                    _ = engine.process(ch.unicodeScalars.first!.value)
+                }
+            }
+        }
+    }
 }
