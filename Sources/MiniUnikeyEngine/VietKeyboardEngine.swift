@@ -45,6 +45,7 @@ public enum VniAction: Equatable {
     case hookU, hookO
     case bowl
     case dd
+    case mapChar(Int)  // Telex: [ ] { } → ơ ư Ơ Ư (vnSym đích)
     case tone(Int)   // 0..5
 }
 
@@ -241,6 +242,20 @@ public init() { reset() }
             case 100, 68:   ev.action = .dd                      // d D → đ
             default: break
             }
+            // Telex có map-char [ ] { } → ơ ư Ơ Ư (SimpleTelex không có)
+            if method == .telex {
+                switch key {
+                case 91:  ev.action = .mapChar(VnLexi.vnl_oh.rawValue); ev.vnSym = VnLexi.vnl_oh.rawValue
+                case 93:  ev.action = .mapChar(VnLexi.vnl_uh.rawValue); ev.vnSym = VnLexi.vnl_uh.rawValue
+                case 123: ev.action = .mapChar(VnLexi.vnl_Oh.rawValue); ev.vnSym = VnLexi.vnl_Oh.rawValue
+                case 125: ev.action = .mapChar(VnLexi.vnl_Uh.rawValue); ev.vnSym = VnLexi.vnl_Uh.rawValue
+                default: break
+                }
+                if case .mapChar = ev.action {
+                    ev.chType = .vn
+                    return ev
+                }
+            }
             if key == 119 || key == 87 {   // w W
                 ev.action = method == .telex ? .txW : .hookAll
                 ev.chType = .nonVn        // như C: UkcMap['w'] = ukcNonVn
@@ -296,6 +311,12 @@ public init() { reset() }
             return processTone(&ev)
         case .txW:
             return processTelexW(&ev)
+        case .mapChar(let sym):
+            var mapEv = ev
+            mapEv.action = .normal
+            mapEv.chType = .vn
+            mapEv.vnSym = sym
+            return processMapCharVN(&mapEv, rawKey: ev.keyCode)
         case .normal:
             return processAppend(&ev)
         }
@@ -319,6 +340,8 @@ public init() { reset() }
                 usedAsMapChar = false
                 mapEv.action = .hookAll
                 mapEv.chType = .nonVn
+                // như C: processMapChar trả 0 đã đổi ev về ký tự gốc 'w'/'W'
+                mapEv.vnSym = VnCharset.asciiToLexi[Int(ev.keyCode)] ?? VnLexi.vnl_nonVnChar.rawValue
                 return processHook(&mapEv)
             }
             return ret
@@ -344,10 +367,10 @@ public init() { reset() }
         (65...90).contains(code)
     }
 
-    /// Port 1:1 C processMapChar: thử chèn ký tự VN; nếu từ vẫn hợp lệ → nuốt phím (backs=0, output=ư);
-    /// nếu từ kỳ dị → pop, undo ô 'ư' trùng (nếu có), rồi append literal 'w'.
+    /// Port 1:1 C processMapChar: thử chèn ký tự VN; nếu từ vẫn hợp lệ → nuốt phím (backs=0, output=…);
+    /// nếu từ kỳ dị → pop, undo ô trùng (nếu có), rồi append literal key (w/W hoặc [ ] { }).
     private func processMapCharVN(_ ev: inout UkKeyEvent, rawKey: UInt32) -> Int {
-        _ = processAppend(&ev)                       // chèn 'ư' như ký tự VN (ev.chType=.vn)
+        _ = processAppend(&ev)                       // chèn ký tự map như ký tự VN (ev.chType=.vn)
         if !options.vietKey { return 0 }
 
         if current >= 0 && buffer[current].form != .empty && buffer[current].form != .nonVn {
@@ -394,11 +417,15 @@ public init() { reset() }
             }
         }
 
-        // append literal 'w'
+        // append literal key (như C: getCharType(keyCode) + IsoToVnLexi(keyCode))
         var rawEv = UkKeyEvent()
         rawEv.keyCode = ev.keyCode
         rawEv.action = .normal
-        rawEv.chType = .nonVn
+        if let scalar = UnicodeScalar(rawKey) {
+            rawEv.chType = VnCharset.wordBreakChars.contains(Character(scalar)) ? .wordBreak : .nonVn
+        } else {
+            rawEv.chType = .nonVn
+        }
         rawEv.vnSym = VnCharset.asciiToLexi[Int(rawKey)] ?? VnLexi.vnl_nonVnChar.rawValue
         let ret = processAppend(&rawEv)
         if undo {
@@ -646,6 +673,7 @@ public init() { reset() }
             buffer[varPos].vnSym = newCh
 
             let recomputed = recomputeVSeq(vStart, vSeqInfo[0])
+            newVs = recomputed
             pInfo = VietKeyboardEngine.vSeqList[recomputed.rawValue]
             roofRemoved = true
         } else {

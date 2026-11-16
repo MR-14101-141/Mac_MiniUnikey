@@ -144,10 +144,71 @@ final class ParityTests: XCTestCase {
         XCTAssertEqual(simulate("w", method: .telex), "ư")             // w = ư (UniKey telex chuẩn)
         XCTAssertEqual(simulate("cw", method: .telex), "cư")
         XCTAssertEqual(simulate("cww", method: .telex), "cw")          // w chữ 2 = undo → literal w
+        XCTAssertEqual(simulate("wW", method: .telex), "uW")           // undo giữ nguyên case của phím
+        XCTAssertEqual(simulate("Ww", method: .telex), "Uw")
         XCTAssertEqual(simulate("aa", method: .telex), "â")
         XCTAssertEqual(simulate("dd", method: .telex), "đ")
         XCTAssertEqual(simulate("saas", method: .telex), "sấ")
         XCTAssertEqual(simulate("uyel", method: .telex), "uyel")       // từ vô nghĩa → literal (spell check)
+
+        // Telex map-char [ ] { }
+        XCTAssertEqual(simulate("t[", method: .telex), "tơ")
+        XCTAssertEqual(simulate("]", method: .telex), "ư")
+        XCTAssertEqual(simulate("a]w", method: .telex), "a]ư")         // ] literal vẫn ngắt từ đúng
+        XCTAssertEqual(simulate("[", method: .simpleTelex), "[")       // SimpleTelex không map
+
+        // Gõ lại phím số: huỷ dấu, số thứ hai literal
+        XCTAssertEqual(simulate("a66"), "a6")
+        XCTAssertEqual(simulate("ca11"), "ca1")
+    }
+
+    // MARK: - Hồi quy: chữ HOA
+
+    /// Bảng isVowel từng đánh dấu sai B/F/J/P/V/Z là nguyên âm và A/E/I/O/U/Y là
+    /// phụ âm, nên "Bo63" không thành "Bổ". Đối chiếu IsVnVowel trong ukengine.cpp.
+    func testUppercaseInput() {
+        XCTAssertEqual(simulate("Bo63"), "Bổ")
+        XCTAssertEqual(simulate("Bo3"), "Bỏ")
+        XCTAssertEqual(simulate("Ba61"), "Bấ")
+        XCTAssertEqual(simulate("A1"), "Á")
+        XCTAssertEqual(simulate("O6"), "Ô")
+        XCTAssertEqual(simulate("O63"), "Ổ")
+        XCTAssertEqual(simulate("U7"), "Ư")
+        XCTAssertEqual(simulate("NGUOI7"), "NGƯƠI")
+        XCTAssertEqual(simulate("To6i"), "Tôi")
+
+        // Telex
+        XCTAssertEqual(simulate("HOAF", method: .telex), "HÒA")
+        XCTAssertEqual(simulate("DDUWONG", method: .telex), "ĐƯƠNG")
+    }
+
+    /// Ký tự Việt Unicode dán/gõ trực tiếp vẫn đi qua engine an toàn.
+    func testLiteralUnicodeInput() {
+        XCTAssertEqual(simulate("Bổ"), "Bổ")
+        XCTAssertEqual(simulate("Bổ1"), "Bố")
+        XCTAssertEqual(simulate("ĐẶNG"), "ĐẶNG")
+    }
+
+    func testUnicodeInputFuzzDoesNotCrash() {
+        let chars = Array("aăâeêioôơuưyAĂÂEÊIOÔƠUƯYáàảãạắằẳẵặấầẩẫậéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵđĐ0123456789 \u{8}")
+        var seed: UInt64 = 0xC0FFEE
+        func next() -> UInt64 {
+            seed = seed &* 6364136223846793005 &+ 1442695040888963407
+            return seed
+        }
+        for method in [VnInputMethod.vni, .telex, .simpleTelex] {
+            let engine = VietKeyboardEngine()
+            engine.method = method
+            engine.reset()
+            for _ in 0..<20_000 {
+                let ch = chars[Int(next() % UInt64(chars.count))]
+                if ch == "\u{8}" {
+                    _ = engine.processBackspace()
+                } else {
+                    _ = engine.process(ch.unicodeScalars.first!.value)
+                }
+            }
+        }
     }
 
     // MARK: - Hồi quy crash "Array index is out of range" trong prepareBuffer()

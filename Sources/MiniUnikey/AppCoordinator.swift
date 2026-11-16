@@ -26,7 +26,9 @@ final class AppCoordinator: NSObject {
         NotificationCenter.default.addObserver(
             self, selector: #selector(tapStatusChanged),
             name: .miniUnikeyStatusChanged, object: nil)
-        EventTapController.shared.start()
+        if SettingsStore.shared.vietnameseOn {
+            EventTapController.shared.start()
+        }
         SettingsStore.shared.applyLaunchAtLogin()
 
         // Chưa có quyền → tự bật cửa sổ hướng dẫn cho người dùng nhìn thấy ngay
@@ -52,8 +54,9 @@ final class AppCoordinator: NSObject {
         } else {
             button.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
         }
+        let methodName = SettingsStore.shared.inputMethod == "telex" ? "Telex" : "VNI"
         button.toolTip = SettingsStore.shared.vietnameseOn
-            ? "MiniUnikey: đang gõ tiếng Việt (kiểu VNI) — bấm để mở menu"
+            ? "MiniUnikey: đang gõ tiếng Việt (kiểu \(methodName)) — bấm để mở menu"
             : "MiniUnikey: đang gõ tiếng Anh/macOS — bấm để mở menu"
     }
 
@@ -75,7 +78,9 @@ final class AppCoordinator: NSObject {
         // Trạng thái thu phím
         let tap = EventTapController.shared
         let stateText: String
-        if Permissions.isAccessibilityGranted() && tap.isRunning {
+        if !SettingsStore.shared.vietnameseOn {
+            stateText = "⏸ Đang tắt gõ tiếng Việt — bật ở mục trên"
+        } else if Permissions.isAccessibilityGranted() && tap.isRunning {
             stateText = "✓ Đang thu phím — gõ thử: tuan62"
         } else if Permissions.isAccessibilityGranted() {
             stateText = "⏳ Đã có quyền — bấm “Thử lại”"
@@ -174,10 +179,11 @@ final class AppCoordinator: NSObject {
     @objc private func settingsChanged() {
         refreshMenu()
         refreshStatusText()
-        SettingsStore.shared.applyLaunchAtLogin()
-        // Nếu đang tắt bộ gõ thì cũng ngừng tap cho nhẹ
+        // Nếu đang tắt bộ gõ thì ngừng tap cho nhẹ (bật lại sẽ start ở dưới)
         if SettingsStore.shared.vietnameseOn {
             EventTapController.shared.start()
+        } else {
+            EventTapController.shared.stop()
         }
     }
 
@@ -216,6 +222,7 @@ final class AppCoordinator: NSObject {
 
     @objc private func toggleLogin() {
         SettingsStore.shared.launchAtLoginEnabled.toggle()
+        SettingsStore.shared.applyLaunchAtLogin()
     }
 
     @objc private func requestPermission() {

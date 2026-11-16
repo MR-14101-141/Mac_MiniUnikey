@@ -21,6 +21,7 @@ final class EventTapController {
     private var runLoopSource: CFRunLoopSource?
     private var eventSource: CGEventSource?
     private var retryCount = 0
+    private var isWatchingPermission = false
 
     private let engine = VietKeyboardEngine()
 
@@ -80,10 +81,13 @@ final class EventTapController {
             isWaitingPermission = true
             EventTapController.diagLog("chần quyền Accessibility — nhờ hệ thống hiện hộp thoại")
             NotificationCenter.default.post(name: .miniUnikeyStatusChanged, object: nil)
+            guard !isWatchingPermission else { return }
+            isWatchingPermission = true
             Permissions.requestAccessibilityPrompt()
             Permissions.watchUntilGranted { [weak self] in
                 DispatchQueue.main.async {
                     EventTapController.diagLog("quyền Accessibility ĐÃ ĐƯỢC CẤP ✅")
+                    self?.isWatchingPermission = false
                     self?.retryCount = 0
                     self?.startTapNow()
                 }
@@ -247,21 +251,17 @@ final class EventTapController {
         }
 
         let result = engine.process(scalar.value)
-        guard result.changed, result.backs > 0 else {
+        guard result.changed else {
             return Unmanaged.passUnretained(event)
-        }
-
-        if !EventTapController.firstTransformLogged {
-            EventTapController.firstTransformLogged = true
-            EventTapController.diagLog("✓ biến đổi phím đầu tiên thành '\(result.output)'")
         }
 
         let appID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? ""
         let appName = NSWorkspace.shared.frontmostApplication?.localizedName ?? "?"
         let useSelection = EventTapController.shouldUseSelection(for: appID, enabled: SettingsStore.shared.selectionModeEnabled)
+
         if !EventTapController.firstTransformLogged {
             EventTapController.firstTransformLogged = true
-            EventTapController.diagLog("✓ biến đổi trong '\(appName)' (\(appID)) — chế độ \(useSelection ? "chọn-thay-thế" : "backspace")")
+            EventTapController.diagLog("✓ biến đổi phím đầu tiên thành '\(result.output)' trong '\(appName)' (\(appID)) — chế độ \(useSelection ? "chọn-thay-thế" : "backspace")")
         }
 
         // Nhích lại trước khi chèn (browser backspace-proof: chọn-ký-tự; app thường: backspace)
@@ -279,7 +279,7 @@ final class EventTapController {
             // hiếm: xoá mà không chèn lại gì → trả lại ký tự gốc
             postText(String(Character(scalar)))
         } else {
-            // changed nhưng đã sản xuất đủ (backs=0 & output rỗng) → để phím đi qua
+            // changed nhưng không xoá & không chèn gì → để phím đi qua
             return Unmanaged.passUnretained(event)
         }
         return nil
