@@ -50,7 +50,7 @@ Ví dụ chuẩn (được kiểm chứng trên engine gốc): `nguoi7 → ngư�
 ## Tuỳ chọn trong menu
 
 - **Tắt/bật gõ tiếng Việt** — chuyển nhanh qua lại VN/EN.
-- **Kiểm tra chính tả** — chỉ biến đổi khi từ lo tạo tiếng Việt hợp lệ theo bảng vần UniKey.
+- **Kiểm tra chính tả** — chỉ biến đổi khi từ lo tạo tiếng Việt hợp lệ theo bảng vần UniKey. Bật: sau một chuỗi không hợp lệ (ví dụ `tt`) các phím dấu sẽ không có tác dụng cho tới khi có dấu cách/ký tự ngắt từ. Tắt: gõ tự do được cả chuỗi kỳ dị (`Re1tte1t` → `Réttét`), đổi lại chữ nước ngoài có nguyên âm + số cũng bị biến đổi (`test1` → `tést`).
 - **Kiểu dấu mới** — `oà` thay `òa` (modern style, tuỳ chọn của UniKey).
 - **Gõ tự do** — cho phép chỉnh dấu ở nguyên âm trước đó, không chỉ ngay sau nguyên âm.
 - **Khởi động cùng macOS** — SMAppService (macOS 13+).

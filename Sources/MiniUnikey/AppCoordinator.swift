@@ -48,13 +48,15 @@ final class AppCoordinator: NSObject {
 
     private func refreshStatusText() {
         guard let button = statusItem?.button else { return }
-        button.title = SettingsStore.shared.vietnameseOn ? "VN" : "en"
+        // Icon phản ánh kiểu gõ: VN = VNI, TE = Telex, en = đang gõ tiếng Anh
+        let method = SettingsStore.shared.inputMethod
+        button.title = SettingsStore.shared.vietnameseOn ? (method == "telex" ? "TE" : "VN") : "en"
         if SettingsStore.shared.vietnameseOn {
             button.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .bold)
         } else {
             button.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
         }
-        let methodName = SettingsStore.shared.inputMethod == "telex" ? "Telex" : "VNI"
+        let methodName = method == "telex" ? "Telex" : "VNI"
         button.toolTip = SettingsStore.shared.vietnameseOn
             ? "MiniUnikey: đang gõ tiếng Việt (kiểu \(methodName)) — bấm để mở menu"
             : "MiniUnikey: đang gõ tiếng Anh/macOS — bấm để mở menu"
@@ -91,18 +93,17 @@ final class AppCoordinator: NSObject {
         menu.addItem(state)
         menu.addItem(.separator())
 
-        // Kiểu gõ: VNI / Telex
+        // Kiểu gõ: VNI / Telex (dấu ✓ do .state đảm nhiệm — không thêm ký tự ◉ vào title)
         let methodTitle = NSMenuItem(title: "Kiểu gõ:", action: nil, keyEquivalent: "")
         methodTitle.isEnabled = false
         menu.addItem(methodTitle)
 
-        let vni = NSMenuItem(title: "⦿ VNI (số cuối từ: sach1)", action: #selector(pickVNI), keyEquivalent: "")
+        let vni = NSMenuItem(title: "VNI — gõ số (sach1 → sách, Bo63 → Bổ)", action: #selector(pickVNI), keyEquivalent: "")
         vni.state = SettingsStore.shared.inputMethod == "vni" ? .on : .off
         vni.target = self
         menu.addItem(vni)
 
-        let telex = NSMenuItem(title: "⦿ Telex (s/f/r/x/j + aa/dd: sach1 s?", action: #selector(pickTelex), keyEquivalent: "")
-        telex.title = "Telex (s f r x j — dấu thanh, aa â, dd đ)"
+        let telex = NSMenuItem(title: "Telex — gõ chữ (sachs → sách, s/f/r/x/j)", action: #selector(pickTelex), keyEquivalent: "")
         telex.state = SettingsStore.shared.inputMethod == "telex" ? .on : .off
         telex.target = self
         menu.addItem(telex)

@@ -141,6 +141,8 @@ final class GuideView: NSView {
         append("• Số 0 gõ LIỀN sau từ đã có dấu: xoá dấu thanh (sach10 → sach).\n")
         append("• Bấm lại cùng một số: huỷ dấu vừa áp dụng (a66 → a6; ca11 → ca1) — số thứ hai gõ literal.\n")
         append("• Muốn gõ chữ số thật: bấm số sau dấu cách/ký tự lạ, hoặc bấm số 2 lần.\n")
+        append("• Trộn chữ nước ngoài (Rest, Réttét…): “Kiểm tra chính tả” BẬT sẽ khoá dấu sau chuỗi\n")
+        append("  không hợp lệ (ví dụ “tt”); tắt nó để gõ tự do: Re1tte1t → Réttét.\n")
         append("• Phím tắt Cmd/Option/Ctrl, điều hướng, chuột… sẽ tự làm mới bộ đệm từ.\n\n")
 
         let p4 = NSAttributedString(
